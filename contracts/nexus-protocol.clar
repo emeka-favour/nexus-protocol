@@ -430,3 +430,61 @@
     (ok true)
   )
 )
+
+;; Batch Size Configuration - Performance optimization control
+(define-public (configure-batch-size (target-size uint))
+  (let (
+      (caller tx-sender)
+      (current-session (unwrap-panic (map-get? BatchSessions caller)))
+    )
+    (asserts! (validate-active-account caller) ERR_ACCOUNT_INACTIVE)
+    (asserts!
+      (and
+        (>= target-size MINIMUM_BATCH_SIZE)
+        (<= target-size MAXIMUM_BATCH_SIZE)
+      )
+      ERR_INVALID_PARAMETERS
+    )
+
+    (map-set BatchSessions caller
+      (merge current-session { optimal-batch-size: target-size })
+    )
+
+    (print {
+      event: "batch-configuration-updated",
+      user: caller,
+      new-batch-size: target-size,
+      block-height: stacks-block-height,
+    })
+    (ok true)
+  )
+)
+
+;; Session Authentication - User presence tracking
+(define-public (authenticate-session)
+  (let (
+      (caller tx-sender)
+      (current-metrics (default-to {
+        last-active: stacks-block-height,
+        session-count: u0,
+        total-operations: u0,
+        latest-operation: stacks-block-height,
+      }
+        (map-get? UserMetrics caller)
+      ))
+    )
+    (map-set UserMetrics caller
+      (merge current-metrics {
+        last-active: stacks-block-height,
+        session-count: (+ (get session-count current-metrics) u1),
+      })
+    )
+
+    (print {
+      event: "session-authenticated",
+      user: caller,
+      block-height: stacks-block-height,
+    })
+    (ok true)
+  )
+)
