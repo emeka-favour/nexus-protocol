@@ -212,3 +212,106 @@
     )
   )
 )
+
+;; Activity Tracker - Updates user engagement metrics
+(define-private (track-user-activity (user principal))
+  (let (
+      (current-block stacks-block-height)
+      (user-metrics (default-to {
+        last-active: current-block,
+        session-count: u0,
+        total-operations: u0,
+        latest-operation: current-block,
+      }
+        (map-get? UserMetrics user)
+      ))
+    )
+    (map-set UserMetrics user
+      (merge user-metrics {
+        last-active: current-block,
+        total-operations: (+ (get total-operations user-metrics) u1),
+        latest-operation: current-block,
+      })
+    )
+  )
+)
+
+;; UTILITY FUNCTIONS
+
+;; Mathematical utility for maximum value selection
+(define-private (select-maximum
+    (value-a uint)
+    (value-b uint)
+  )
+  (if (>= value-a value-b)
+    value-a
+    value-b
+  )
+)
+
+;; Mathematical utility for minimum value selection
+(define-private (select-minimum
+    (value-a uint)
+    (value-b uint)
+  )
+  (if (<= value-a value-b)
+    value-a
+    value-b
+  )
+)
+
+;; Social Connection Validator - Checks if users are connected
+(define-private (validate-social-connection
+    (user-a principal)
+    (user-b principal)
+  )
+  (match (map-get? SocialConnections {
+    initiator: user-a,
+    target: user-b,
+  })
+    connection (is-eq (get connection-status connection) RELATION_CONNECTED)
+    false
+  )
+)
+
+;; Active User Validator - Verifies account is operational
+(define-private (validate-active-account (user principal))
+  (match (map-get? UserProfiles user)
+    profile (and
+      (is-eq (get account-status profile) STATUS_ACTIVE)
+      (is-none (get deactivated-at profile))
+    )
+    false
+  )
+)
+
+;; User Existence Checker - Confirms user registration
+(define-private (confirm-user-exists (user principal))
+  (is-some (map-get? UserProfiles user))
+)
+
+;; Access Restriction Checker - Validates user blocking status
+(define-private (check-access-restriction
+    (restrictor principal)
+    (restricted principal)
+  )
+  (is-some (map-get? AccessRestrictions {
+    restrictor: restrictor,
+    restricted: restricted,
+  }))
+)
+
+;; Privacy Settings Resolver - Retrieves user privacy configuration
+(define-private (resolve-privacy-settings (user principal))
+  (default-to {
+    connections-visible: true,
+    activity-visible: true,
+    profile-data-visible: true,
+    presence-visible: true,
+    avatar-visible: true,
+    encryption-active: false,
+    settings-updated: stacks-block-height,
+  }
+    (map-get? PrivacySettings user)
+  )
+)
