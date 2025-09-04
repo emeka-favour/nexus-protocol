@@ -315,3 +315,118 @@
     (map-get? PrivacySettings user)
   )
 )
+
+;; PUBLIC PROTOCOL INTERFACE
+
+;; Intelligent Batch Optimization - Adaptive performance tuning
+(define-public (optimize-batch-performance (user principal))
+  (let (
+      (session-data (unwrap-panic (map-get? BatchSessions user)))
+      (current-block stacks-block-height)
+      (session-age (- current-block (get session-started session-data)))
+      (current-optimal-size (get optimal-batch-size session-data))
+      (pending-count (get pending-operations session-data))
+    )
+    (if (> session-age BATCH_TTL)
+      (begin
+        (map-set BatchSessions user
+          (merge session-data {
+            optimal-batch-size: (select-maximum MINIMUM_BATCH_SIZE (/ current-optimal-size u2)),
+            pending-operations: u0,
+            session-started: current-block,
+          })
+        )
+        (ok true)
+      )
+      (begin
+        (map-set BatchSessions user
+          (merge session-data { optimal-batch-size: (select-minimum MAXIMUM_BATCH_SIZE
+            (if (>= pending-count (/ current-optimal-size u2))
+              (* current-optimal-size u2)
+              current-optimal-size
+            )) }
+          ))
+        (ok true)
+      )
+    )
+  )
+)
+
+;; Advanced Privacy Configuration - Comprehensive privacy control
+(define-public (configure-privacy-settings
+    (connections-visible bool)
+    (activity-visible bool)
+    (profile-data-visible bool)
+    (presence-visible bool)
+    (avatar-visible bool)
+    (encryption-active bool)
+  )
+  (let ((caller tx-sender))
+    (asserts! (validate-active-account caller) ERR_ACCOUNT_INACTIVE)
+    (asserts! (validate-rate-limit caller u2) ERR_RATE_LIMIT_EXCEEDED)
+
+    (map-set PrivacySettings caller {
+      connections-visible: connections-visible,
+      activity-visible: activity-visible,
+      profile-data-visible: profile-data-visible,
+      presence-visible: presence-visible,
+      avatar-visible: avatar-visible,
+      encryption-active: encryption-active,
+      settings-updated: stacks-block-height,
+    })
+
+    (increment-usage-metrics caller u2)
+    (track-user-activity caller)
+
+    (print {
+      event: "privacy-configuration-updated",
+      user: caller,
+      block-height: stacks-block-height,
+    })
+    (ok true)
+  )
+)
+
+;; Dynamic Profile Management - Flexible profile updates
+(define-public (update-profile-data
+    (display-name (optional (string-ascii 64)))
+    (profile-data (optional (string-utf8 256)))
+    (public-key (optional (buff 32)))
+    (avatar-uri (optional (string-utf8 256)))
+  )
+  (let (
+      (caller tx-sender)
+      (current-profile (unwrap-panic (map-get? UserProfiles caller)))
+    )
+    (asserts! (validate-active-account caller) ERR_ACCOUNT_INACTIVE)
+    (asserts! (validate-rate-limit caller u2) ERR_RATE_LIMIT_EXCEEDED)
+
+    (map-set UserProfiles caller
+      (merge current-profile {
+        display-name: (default-to (get display-name current-profile) display-name),
+        profile-data: (if (is-some profile-data)
+          profile-data
+          (get profile-data current-profile)
+        ),
+        public-key: (if (is-some public-key)
+          public-key
+          (get public-key current-profile)
+        ),
+        avatar-uri: (if (is-some avatar-uri)
+          avatar-uri
+          (get avatar-uri current-profile)
+        ),
+      })
+    )
+
+    (increment-usage-metrics caller u2)
+    (track-user-activity caller)
+
+    (print {
+      event: "profile-data-updated",
+      user: caller,
+      block-height: stacks-block-height,
+    })
+    (ok true)
+  )
+)
